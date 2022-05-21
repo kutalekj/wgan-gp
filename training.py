@@ -112,7 +112,7 @@ class Trainer:
 
             # Only update generator every |critic_iterations| iterations (every second iteration?)
             if self.num_steps % self.critic_iterations == 0:
-                self._critic_train_iteration(data['L'])  # TODO: JKU: Both L and (a,b) channels should be passed in
+                self._generator_train_iteration(data['L'])  # TODO: JKU: Both L and (a,b) channels should be passed in
                 # self._generator_train_iteration(data[0])
 
             # STDOUT print
@@ -122,8 +122,7 @@ class Trainer:
                 print("GP: {}".format(self.losses['GP'][-1]))
                 print("Gradient norm: {}".format(self.losses['gradient_norm'][-1]))
                 if self.num_steps > self.critic_iterations:
-                    # print("G: {}".format(self.losses['G'][-1]))
-                    pass  # TODO: JKU: Losses are not calculating - empty list, nothing to print out (FIX IT)
+                    print("G: {}".format(self.losses['G'][-1]))
 
     def train(self, data_loader, epochs, save_training_gif=True):
         fixed_latents = []
