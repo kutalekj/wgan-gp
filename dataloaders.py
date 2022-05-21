@@ -4,7 +4,7 @@ from random import shuffle
 from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms
 from PIL import Image
-from skimage.color import rgb2lab, lab2rgb
+from skimage.color import rgb2lab
 
 SIZE = 256
 
@@ -30,10 +30,10 @@ class ColorizationDataset(Dataset):
         img = np.array(img)
         img_lab = rgb2lab(img).astype("float32")
         img_lab = transforms.ToTensor()(img_lab)
-        L = img_lab[[0], ...] / 50. - 1.  # Between -1 and 1
+        _L = img_lab[[0], ...] / 50. - 1.  # Between -1 and 1
         ab = img_lab[[1, 2], ...] / 110.  # Between -1 and 1
 
-        return {'L': L, 'ab': ab}
+        return {'L': _L, 'ab': ab}
 
     def __len__(self):
         return len(self.paths)
@@ -42,8 +42,7 @@ class ColorizationDataset(Dataset):
 def get_cars_dataloader(batch_size=16, n_workers=0, pin_memory=True, **kwargs):
     """Cars dataloader with (256, 256) sized images."""
     dataset = ColorizationDataset(**kwargs)
-    dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=n_workers,
-                            pin_memory=pin_memory)
+    dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=n_workers, pin_memory=pin_memory)
     return dataloader
 
 
@@ -76,32 +75,3 @@ def get_mnist_dataloaders(batch_size=128):
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True)
     return train_loader, test_loader
-
-
-def get_fashion_mnist_dataloaders(batch_size=128):
-    """Fashion MNIST dataloader with (32, 32) sized images."""
-    # Resize images so they are a power of 2
-    all_transforms = transforms.Compose([transforms.Resize(32), transforms.ToTensor()])
-    # Get train and test data
-    train_data = datasets.FashionMNIST('../fashion_data', train=True, download=True, transform=all_transforms)
-    test_data = datasets.FashionMNIST('../fashion_data', train=False, transform=all_transforms)
-    # Create dataloaders
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True)
-    return train_loader, test_loader
-
-
-def get_lsun_dataloader(path_to_data='../lsun', dataset='bedroom_train', batch_size=64):
-    """LSUN dataloader with (128, 128) sized images.
-
-    path_to_data : str
-        One of 'bedroom_val' or 'bedroom_train'
-    """
-    # Compose transforms
-    transform = transforms.Compose([transforms.Resize(128), transforms.CenterCrop(128), transforms.ToTensor()])
-
-    # Get dataset
-    lsun_dataset = datasets.LSUN(db_path=path_to_data, classes=[dataset], transform=transform)
-
-    # Create dataloader
-    return DataLoader(lsun_dataset, batch_size=batch_size, shuffle=True)
