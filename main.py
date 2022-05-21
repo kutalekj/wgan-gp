@@ -1,6 +1,6 @@
 import torch
 import torch.optim as optim
-from dataloaders import get_mnist_dataloaders, get_paths, split_paths_between_train_and_val
+from dataloaders import get_mnist_dataloaders, get_paths, split_paths_between_train_and_val, get_cars_dataloader
 from models import Generator, Discriminator
 from training import Trainer
 
@@ -8,8 +8,18 @@ from training import Trainer
 paths = get_paths(root_dir_path="C:\\Users\\jiri.kutalek\\Downloads\\og_2000-20220521T101142Z-001")
 train_paths, val_paths = split_paths_between_train_and_val(paths, ratio=0.8)
 
-# ------------------------------------------------------------------------------------------------
+train_dataloader = get_cars_dataloader(paths=train_paths, split='train')
+validation_dataloader = get_cars_dataloader(paths=val_paths, split='val')
 
+data = next(iter(train_dataloader))
+Ls, abs_ = data['L'], data['ab']
+img_size_L = (Ls.shape[2], Ls.shape[3], 1)
+img_size_ab = (abs_.shape[2], abs_.shape[3], 2)
+print(Ls.shape, abs_.shape)
+print(len(train_dataloader), len(validation_dataloader))  # len(dataloader) = num_of_data / batch_size
+
+# ------------------------------------------------------------------------------------------------
+# TODO: Next: replace Generator and Discriminator inputs by cars data
 data_loader, _ = get_mnist_dataloaders(batch_size=64)
 img_size = (32, 32, 1)
 
