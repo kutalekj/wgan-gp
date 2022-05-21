@@ -1,10 +1,15 @@
 import torch
 import torch.optim as optim
-from dataloaders import get_mnist_dataloaders, get_lsun_dataloader
+from dataloaders import get_mnist_dataloaders, get_paths, split_paths_between_train_and_val
 from models import Generator, Discriminator
 from training import Trainer
 
-# Get data
+# Get data (1. all paths, 2. split train and validation, 3. dataloaders)
+paths = get_paths(root_dir_path="C:\\Users\\jiri.kutalek\\Downloads\\og_2000-20220521T101142Z-001")
+train_paths, val_paths = split_paths_between_train_and_val(paths, ratio=0.8)
+
+# ------------------------------------------------------------------------------------------------
+
 data_loader, _ = get_mnist_dataloaders(batch_size=64)
 img_size = (32, 32, 1)
 

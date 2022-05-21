@@ -1,5 +1,26 @@
-from torch.utils.data import DataLoader
+import numpy as np
+import os
+from random import shuffle
+from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms
+
+
+def get_paths(root_dir_path):
+    paths = []
+    # Get all file paths (recursive search in a directory)
+    for path, currentDirectory, files in os.walk(root_dir_path):
+        for file in files:
+            paths.append(os.path.join(path, file))
+    return paths
+
+
+def split_paths_between_train_and_val(paths, ratio):
+    # Randomly shuffle all data
+    shuffle(paths)
+
+    # Split paths by the ratio (e.g. for '0.8' split train:val by 80:20)
+    split_idx = int(len(paths) * ratio)
+    return paths[:split_idx], paths[split_idx:]
 
 
 def get_mnist_dataloaders(batch_size=128):
