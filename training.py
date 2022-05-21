@@ -8,8 +8,7 @@ from torch.autograd import grad as torch_grad
 
 class Trainer:
     def __init__(self, generator, discriminator, gen_optimizer, dis_optimizer,
-                 gp_weight=10, critic_iterations=5, print_every=50,
-                 use_cuda=False):
+                 gp_weight=10, critic_iterations=5, print_every=5, use_cuda=False):
         self.G = generator
         self.G_opt = gen_optimizer
         self.D = discriminator
@@ -31,6 +30,7 @@ class Trainer:
         generated_data = self.sample_generator(batch_size)
 
         # Calculate probabilities on real and generated data
+        # TODO: JKU: Modify generator to take grayscale condition on the input and to output a color (2-channel) image
         data = Variable(data)
         if self.use_cuda:
             data = data.cuda()
@@ -107,10 +107,13 @@ class Trainer:
         # A single training epoch
         for i, data in enumerate(data_loader):
             self.num_steps += 1
-            self._critic_train_iteration(data[0])
+            self._critic_train_iteration(data['L'])  # TODO: JKU: Both L and (a,b) channels should be passed in
+            # self._critic_train_iteration(data[0])
+
             # Only update generator every |critic_iterations| iterations (every second iteration?)
             if self.num_steps % self.critic_iterations == 0:
-                self._generator_train_iteration(data[0])
+                self._critic_train_iteration(data['L'])  # TODO: JKU: Both L and (a,b) channels should be passed in
+                # self._generator_train_iteration(data[0])
 
             # STDOUT print
             if i % self.print_every == 0:
@@ -119,7 +122,8 @@ class Trainer:
                 print("GP: {}".format(self.losses['GP'][-1]))
                 print("Gradient norm: {}".format(self.losses['gradient_norm'][-1]))
                 if self.num_steps > self.critic_iterations:
-                    print("G: {}".format(self.losses['G'][-1]))
+                    # print("G: {}".format(self.losses['G'][-1]))
+                    pass  # TODO: JKU: Losses are not calculating - empty list, nothing to print out (FIX IT)
 
     def train(self, data_loader, epochs, save_training_gif=True):
         fixed_latents = []

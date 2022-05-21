@@ -21,11 +21,16 @@ print(len(train_dataloader), len(validation_dataloader))  # len(dataloader) = nu
 # ------------------------------------------------------------------------------------------------
 # TODO: Next: replace Generator and Discriminator inputs by cars data
 data_loader, _ = get_mnist_dataloaders(batch_size=64)
-img_size = (32, 32, 1)
+# img_size = (32, 32, 1)
 
 # Define generator and discriminator
-generator = Generator(img_size=img_size, latent_dim=100, dim=16)
-discriminator = Discriminator(img_size=img_size, dim=16)
+
+# generator = Generator(img_size=img_size, latent_dim=100, dim=16)
+# discriminator = Discriminator(img_size=img_size, dim=16)
+
+generator = Generator(img_size=img_size_L, latent_dim=100, dim=16)
+# discriminator = Discriminator(img_size=img_size_ab, dim=16)
+discriminator = Discriminator(img_size=img_size_L, dim=16)  # TODO: JKU: Discriminator must take 2-chn. image on input
 print(generator)
 print(discriminator)
 
@@ -36,11 +41,13 @@ G_optimizer = optim.Adam(generator.parameters(), lr=lr, betas=betas)
 D_optimizer = optim.Adam(discriminator.parameters(), lr=lr, betas=betas)
 
 # Train model
-epochs = 200
+epochs = 20
 trainer = Trainer(generator, discriminator, G_optimizer, D_optimizer, use_cuda=torch.cuda.is_available())
-trainer.train(data_loader, epochs, save_training_gif=True)
+trainer.train(train_dataloader, epochs, save_training_gif=False)
+# trainer.train(data_loader, epochs, save_training_gif=False)
 
 # Save model
-name = 'mnist_model'
+# name = 'mnist_model'
+name = 'cars_model'
 torch.save(trainer.G.state_dict(), './gen_' + name + '.pt')
 torch.save(trainer.D.state_dict(), './dis_' + name + '.pt')
