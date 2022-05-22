@@ -30,7 +30,7 @@ class Trainer:
         generated_data = self.sample_generator(batch_size)
 
         # Calculate probabilities on real and generated data
-        # TODO: JKU: Modify generator to take grayscale condition on the input and to output a color (2-channel) image
+        # TODO: JKU: Modify generator to concatenate input (L*a*b) with noise and output a 2-channel (*a*b) image
         data = Variable(data)
         if self.use_cuda:
             data = data.cuda()
@@ -107,13 +107,16 @@ class Trainer:
         # A single training epoch
         for i, data in enumerate(data_loader):
             self.num_steps += 1
-            self._critic_train_iteration(data['L'])  # TODO: JKU: Both L and (a,b) channels should be passed in
+            # Discriminator training?
+            self._critic_train_iteration(data['L'])  # TODO: JKU: A 3-channel REAL image (L*a*b) should be passed in
             # self._critic_train_iteration(data[0])
 
             # Only update generator every |critic_iterations| iterations (every second iteration?)
             if self.num_steps % self.critic_iterations == 0:
-                self._generator_train_iteration(data['L'])  # TODO: JKU: Both L and (a,b) channels should be passed in
+                # Generator training?
+                self._generator_train_iteration(data['L'])  # TODO: JKU: A 3-chn. USER image (L*a*b) should be passed in
                 # self._generator_train_iteration(data[0])
+                # TODO: JKU: Concatenate 2-chn. (*a,*b) generator output with the 1-chn. grayscale prior ('L' from REAL)
 
             # STDOUT print
             if i % self.print_every == 0:
@@ -131,10 +134,9 @@ class Trainer:
         # Visualization of the training progress
         if save_training_gif:
             # Fix latents to see how image generation improves during training
-            fixed_latents = Variable(self.G.sample_latent(64))
+            fixed_latents = Variable(self.G.sample_latent(64))  # TODO: JKU: Why hardcoded 64? Is it batch_size?
             if self.use_cuda:
                 fixed_latents = fixed_latents.cuda()
-            training_progress_images = []
 
         # Main training loop
         for epoch in range(epochs):
@@ -151,12 +153,12 @@ class Trainer:
                 training_progress_images.append(img_grid)
 
         # Visualization of the training progress
-        if save_training_gif:
+        if save_training_gif:  # TODO: JKU: Make smaller image grid/lower batch_size/... (too many samples in final GIF)
             imageio.mimsave('./training_{}_epochs.gif'.format(epochs), training_progress_images)
 
     def sample_generator(self, num_samples):
         # "Variable" is a wrapper around a PyTorch Tensor, representing a node in a computational graph
-        latent_samples = Variable(self.G.sample_latent(num_samples))
+        latent_samples = Variable(self.G.sample_latent(num_samples))  # Get gaussian noise data
         if self.use_cuda:
             latent_samples = latent_samples.cuda()
         generated_data = self.G(latent_samples)
