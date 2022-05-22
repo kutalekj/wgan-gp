@@ -2,12 +2,17 @@ import torch
 import torch.optim as optim
 from matplotlib import pyplot as plt
 from PIL import Image
+
+from configuration import config
 from dataloaders import get_mnist_dataloaders, get_paths, split_paths_between_train_and_val, get_cars_dataloader
 from models import Generator, Discriminator
 from training import Trainer
 
+# Training data path
+params = config(section="dataset")
+
 # Get data (1. all paths, 2. split train and validation, 3. dataloaders)
-paths = get_paths(root_dir_path="C:\\Users\\jiri.kutalek\\Downloads\\og_2000-20220521T101142Z-001")
+paths = get_paths(root_dir_path=params["path"])
 train_paths, val_paths = split_paths_between_train_and_val(paths, ratio=0.8)
 
 train_dataloader = get_cars_dataloader(paths=train_paths, split='train')
