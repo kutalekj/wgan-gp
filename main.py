@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import argparse
 import enum
 import torch
 import torch.optim as optim
@@ -12,40 +12,84 @@ from dataloaders import CarDataset, get_paths
 from models import Generator, Discriminator, UnetGenerator
 from training import Trainer
 
-dataset_paths = config(section="dataset_paths")
-training_settings = config(section="training_settings")
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-og_paths = get_paths(root_dir_path=dataset_paths["og"])
-og_dataset = CarDataset(og_paths)
-og_dataloader = DataLoader(og_dataset, batch_size=int(training_settings["batch_size"]), shuffle=True)
+def get_parser():
+    """
+    Defined program parameters
+    :return: Program parser
+    """
+    parser = argparse.ArgumentParser(description="")
+    parser.add_argument('--loadModel', required=False, type=str2bool, dest='load_model', default=False)
+    parser.add_argument('--saveModel', required=False, type=str2bool, dest='save_model', default=True)
+    parser.add_argument('--load', required=False, type=str, dest='load', default="")
+    parser.add_argument('--save', required=False, type=str, dest='save_name', default="")
+    parser.add_argument('--epochs', dest='epochs', type=int, default=10)  # can be 'train' or 'test'
+    return parser
 
 
-grayscale_paths = get_paths(root_dir_path=dataset_paths["grayscale"])
-grayscale_dataset = CarDataset(grayscale_paths)
-grayscale_dataloader = DataLoader(grayscale_dataset, batch_size=int(training_settings["batch_size"]), shuffle=True)
+if __name__ == '__main__':
+    # Parse ARGS
+    args = get_parser().parse_args()
 
+    name = "cars_model"
+    model_save_name = f'trainting_{name}.pt'
 
-img_size = (256, 256, 3)
+    dataset_paths = config(section="dataset_paths")
+    training_settings = config(section="training_settings")
 
-generator = UnetGenerator(input_c=3, output_c=2)
-discriminator = Discriminator(img_size=img_size, dim=16)
+    og_paths = get_paths(root_dir_path=dataset_paths["og"])
+    og_dataset = CarDataset(og_paths)
+    og_dataloader = DataLoader(og_dataset, batch_size=int(training_settings["batch_size"]), shuffle=True)
 
-# Initialize GD optimizers
-lr = 1e-4
-betas = (0.9, 0.99)
-G_optimizer = optim.Adam(generator.parameters(), lr=lr, betas=betas)
-D_optimizer = optim.Adam(discriminator.parameters(), lr=lr, betas=betas)
+    grayscale_paths = get_paths(root_dir_path=dataset_paths["grayscale"])
+    grayscale_dataset = CarDataset(grayscale_paths)
+    grayscale_dataloader = DataLoader(grayscale_dataset, batch_size=int(training_settings["batch_size"]), shuffle=True)
 
+    img_size = (256, 256, 3)
 
-# Train model
-epochs = 10
-trainer = Trainer(generator, discriminator, G_optimizer, D_optimizer, use_cuda=torch.cuda.is_available())
-trainer.train(og_dataloader, grayscale_dataloader, epochs)
+    generator = UnetGenerator(input_c=3, output_c=2)
+    discriminator = Discriminator(img_size=img_size, dim=16)
 
+    if args.load_model:
+        # Load from save
+        if args.load == "":
+            checkpoint = torch.load(model_save_name)
+        else:
+            checkpoint = torch.load(args.load)
+        generator.load_state_dict(checkpoint['generator'])
+        discriminator.load_state_dict(checkpoint['discriminator'])
+        # Set to train mode
+        generator.train()
+        discriminator.train()
 
-# # Save model
-# # name = 'mnist_model'
-name = "cars_model"
-torch.save(trainer.G.state_dict(), "./gen_" + name + ".pt")
-torch.save(trainer.D.state_dict(), "./dis_" + name + ".pt")
+    # Initialize GD optimizers
+    lr = 1e-4
+    betas = (0.9, 0.99)
+    G_optimizer = optim.Adam(generator.parameters(), lr=lr, betas=betas)
+    D_optimizer = optim.Adam(discriminator.parameters(), lr=lr, betas=betas)
+
+    # Train model
+    epochs = args.epochs
+    trainer = Trainer(generator, discriminator, G_optimizer, D_optimizer, use_cuda=torch.cuda.is_available())
+    trainer.train(og_dataloader, grayscale_dataloader, epochs)
+
+    if args.save_model:
+        # Save model
+        save_path = model_save_name
+        if args.save_name != "":
+            save_path = args.save_name
+        torch.save({
+            'generator': trainer.G.state_dict(),
+            'discriminator': trainer.D.state_dict(),
+        }, save_path)
