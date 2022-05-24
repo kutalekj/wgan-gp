@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import torch
 from random import shuffle
 from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms
@@ -27,7 +28,8 @@ class CarDataset(Dataset):
         _L = img_lab[[0], ...] / 50.0 - 1.0  # Between -1 and 1
         ab = img_lab[[1, 2], ...] / 110.0  # Between -1 and 1
 
-        return {"L": _L, "ab": ab}
+        return torch.cat([_L, ab], 0)
+        # return {"L": _L, "ab": ab}
 
 
 # class ColorizationDataset(Dataset):

@@ -33,28 +33,29 @@ class Trainer:
             self.G.cuda()
             self.D.cuda()
 
-    def _critic_train_iteration(self, data):
+    def _critic_train_iteration(self, og_data, grayscale_data):
         # ANK: v promenne data je batch nactenych obrazku, v nasem pripade to budou barevne ground_truth obrazky protoze jsou pak pouzity v diskriminatoru
 
+        # assert og_data.size()[0] == grayscale_data.size()[0]
         # Get generated data
-        batch_size = data.size()[0]
+        # batch_size = og_data.size()[0]
 
         # TODO: ANK: ultra dulezite, tady ta funkce bude potreba hodne predelat, tak aby generovala prostory ab a navic by na vstupu mela mit Lab cernobileho obrazku (s napovedou barev)
-        generated_data = self.sample_generator(batch_size)
+        generated_data = self.sample_generator(grayscale_data)
 
         # Calculate probabilities on real and generated data
         # TODO: JKU: Modify generator to concatenate input (L*a*b) with noise and output a 2-channel (*a*b) image
-        data = Variable(data)
+        og_data = Variable(og_data)
         if self.use_cuda:
-            data = data.cuda()
+            og_data = og_data.cuda()
 
         # ANK: hrozne dulezity krok, d_real jsou asi pravdepodobnosti ze skutecna data jsou skutecna
         # d_gen jsou pravdepodobnosti ze vygenerovana data jsou skutecna
-        d_real = self.D(data)
+        d_real = self.D(og_data)
         d_generated = self.D(generated_data)
 
         # Calculate the gradient penalty
-        gradient_penalty = self._gradient_penalty(data, generated_data)
+        gradient_penalty = self._gradient_penalty(og_data, generated_data)
         self.losses["GP"].append(gradient_penalty.data)
 
         # Get total loss and optimize
@@ -68,13 +69,12 @@ class Trainer:
         self.D_opt.step()
         self.losses["D"].append(d_loss.data)
 
-    def _generator_train_iteration(self, data):
+    def _generator_train_iteration(self, grayscale_data):
         # https://stackoverflow.com/questions/48001598/why-do-we-need-to-call-zero-grad-in-pytorch
         self.G_opt.zero_grad()
 
         # Get generated data
-        batch_size = data.size()[0]
-        generated_data = self.sample_generator(batch_size)
+        generated_data = self.sample_generator(grayscale_data)
 
         # Calculate loss and optimize
         d_generated = self.D(generated_data)
@@ -124,19 +124,23 @@ class Trainer:
         # Return gradient penalty
         return self.gp_weight * ((gradients_norm - 1) ** 2).mean()
 
-    def _train_epoch(self, data_loader):
+    def _train_epoch(self, og_data_loader, grayscale_data_loader):
         # A single training epoch
         # ANK: tady se nacte do promenne data vzdy cely batch dat - tj tensor o rozmerech (batch_size, channels, 256, 256)
-        for i, data in enumerate(data_loader):
+        for i, (og_data, grayscale_data) in enumerate(zip(og_data_loader, grayscale_data_loader)):
             self.num_steps += 1
             # Discriminator training?
-            self._critic_train_iteration(data["L"])  # TODO: JKU: A 3-channel REAL image (L*a*b) should be passed in
+            self._critic_train_iteration(
+                og_data, grayscale_data
+            )  # TODO: JKU: A 3-channel REAL image (L*a*b) should be passed in
             # self._critic_train_iteration(data[0])
 
             # Only update generator every |critic_iterations| iterations (every second iteration?)
             if self.num_steps % self.critic_iterations == 0:
                 # Generator training?
-                self._generator_train_iteration(data["L"])  # TODO: JKU: A 3-chn. USER image (L*a*b) should be passed in
+                self._generator_train_iteration(
+                    grayscale_data
+                )  # TODO: JKU: A 3-chn. USER image (L*a*b) should be passed in
                 # self._generator_train_iteration(data[0])
                 # TODO: JKU: Concatenate 2-chn. (*a,*b) generator output with the 1-chn. grayscale prior ('L' from REAL)
 
@@ -149,44 +153,22 @@ class Trainer:
                 if self.num_steps > self.critic_iterations:
                     print("G: {}".format(self.losses["G"][-1]))
 
-    def train(self, data_loader, epochs, save_training_gif=True):
-        fixed_latents = []
-        training_progress_images = []
-
-        # Visualization of the training progress
-        if save_training_gif:
-            # Fix latents to see how image generation improves during training
-            fixed_latents = Variable(self.G.sample_latent(64))  # TODO: JKU: Why hardcoded 64? Is it batch_size?
-            if self.use_cuda:
-                fixed_latents = fixed_latents.cuda()
+    def train(self, og_data_loader, grayscale_data_loader, epochs):
 
         # Main training loop
         for epoch in range(epochs):
             print("\nEpoch {}".format(epoch + 1))
-            self._train_epoch(data_loader)
+            self._train_epoch(og_data_loader, grayscale_data_loader)
 
-            # Visualization of the training progress
-            if save_training_gif:
-                # Generate batch of images and convert to grid
-                img_grid = make_grid(self.G(fixed_latents).cpu().data)
-                # Convert to numpy and transpose axes to fit imageio convention (e.g. (width, height, channels))
-                img_grid = np.transpose(img_grid.numpy(), (1, 2, 0))
-                # Add image grid to training progress
-                training_progress_images.append(img_grid)
-
-        # Visualization of the training progress
-        if save_training_gif:  # TODO: JKU: Make smaller image grid/lower batch_size/... (too many samples in final GIF)
-            imageio.mimsave("./training_{}_epochs.gif".format(epochs), training_progress_images)
-
-    def sample_generator(self, num_samples):
+    def sample_generator(self, grayscale_data):
         # "Variable" is a wrapper around a PyTorch Tensor, representing a node in a computational graph
-        latent_samples = Variable(self.G.sample_latent(num_samples))  # Get gaussian noise data
-        if self.use_cuda:
-            latent_samples = latent_samples.cuda()
-        generated_data = self.G(latent_samples)
+        # latent_samples = Variable(self.G.sample_latent(num_samples))  # Get gaussian noise data
+        # if self.use_cuda:
+        #     latent_samples = latent_samples.cuda()
+        generated_data = self.G(grayscale_data)
         return generated_data
 
-    def sample(self, num_samples):
-        generated_data = self.sample_generator(num_samples)
-        # Remove color channel
-        return generated_data.data.cpu().numpy()[:, 0, :, :]
+    # def sample(self, num_samples):
+    #     generated_data = self.sample_generator(num_samples)
+    #     # Remove color channel
+    #     return generated_data.data.cpu().numpy()[:, 0, :, :]

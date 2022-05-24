@@ -1,74 +1,51 @@
 #!/usr/bin/env python3
 
+import enum
 import torch
 import torch.optim as optim
+from torch.utils.data import DataLoader
 from matplotlib import pyplot as plt
 from PIL import Image
 
 from configuration import config
-from dataloaders import get_paths, split_paths_between_train_and_val, get_cars_dataloader
-from models import Generator, Discriminator
+from dataloaders import CarDataset, get_paths
+from models import Generator, Discriminator, UnetGenerator
 from training import Trainer
 
+dataset_paths = config(section="dataset_paths")
+training_settings = config(section="training_settings")
 
-# Training data path
-params = config(section="dataset")
 
-# Get data (1. all paths, 2. split train and validation, 3. dataloaders)
-paths = get_paths(root_dir_path=params["path"])
-train_paths, val_paths = split_paths_between_train_and_val(paths, ratio=0.8)
+og_paths = get_paths(root_dir_path=dataset_paths["og"])
+og_dataset = CarDataset(og_paths)
+og_dataloader = DataLoader(og_dataset, batch_size=int(training_settings["batch_size"]), shuffle=True)
 
-train_dataloader = get_cars_dataloader(paths=train_paths, split="train")
-validation_dataloader = get_cars_dataloader(paths=val_paths, split="val")
 
-# data_loader, _ = get_mnist_dataloaders(batch_size=64)
-# img_size = (32, 32, 1)
+grayscale_paths = get_paths(root_dir_path=dataset_paths["grayscale"])
+grayscale_dataset = CarDataset(grayscale_paths)
+grayscale_dataloader = DataLoader(grayscale_dataset, batch_size=int(training_settings["batch_size"]), shuffle=True)
 
-# ------------------------------------------------------------------------------------------------
-# Debug plots/STDOUT prints
-plt, axes = plt.subplots(4, 4, figsize=(10, 10))
-for ax, img_path in zip(axes.flatten(), train_paths):
-    ax.imshow(Image.open(img_path))
-    ax.axis("off")
-plt.show()
 
-data = next(iter(train_dataloader))
-Ls, abs_ = data["L"], data["ab"]
-img_size_L = (Ls.shape[2], Ls.shape[3], 1)
-img_size_ab = (abs_.shape[2], abs_.shape[3], 2)
-img_size = (img_size_L[0], img_size_L[1], 3)  # full 3-channel color image (L*a*b)
-print(Ls.shape, abs_.shape)
-print(len(train_dataloader), len(validation_dataloader))  # len(dataloader) = num_of_data / batch_size
+img_size = (256, 256, 3)
 
-# ------------------------------------------------------------------------------------------------
-# Define generator and discriminator
+generator = UnetGenerator(input_c=3, output_c=2)
+discriminator = Discriminator(img_size=img_size, dim=16)
 
-# generator = Generator(img_size=img_size, latent_dim=100, dim=16)
-# discriminator = Discriminator(img_size=img_size, dim=16)
-
-generator = Generator(img_size=img_size_L, latent_dim=100, dim=16)
-# discriminator = Discriminator(img_size=img_size, dim=16) TODO: JKU: Discriminator to take 3-chn. img on input (L*a*b)
-discriminator = Discriminator(img_size=img_size_L, dim=16)
-print(generator)
-print(discriminator)
-
-# ------------------------------------------------------------------------------------------------
 # Initialize GD optimizers
 lr = 1e-4
 betas = (0.9, 0.99)
 G_optimizer = optim.Adam(generator.parameters(), lr=lr, betas=betas)
 D_optimizer = optim.Adam(discriminator.parameters(), lr=lr, betas=betas)
 
-# ------------------------------------------------------------------------------------------------
-# Train model
-epochs = 20
-trainer = Trainer(generator, discriminator, G_optimizer, D_optimizer, use_cuda=torch.cuda.is_available())
-trainer.train(train_dataloader, epochs, save_training_gif=True)
-# trainer.train(data_loader, epochs, save_training_gif=False)
 
-# ------------------------------------------------------------------------------------------------
-# Save model
-# name = 'mnist_model'
+# Train model
+epochs = 10
+trainer = Trainer(generator, discriminator, G_optimizer, D_optimizer, use_cuda=torch.cuda.is_available())
+trainer.train(og_dataloader, grayscale_dataloader, epochs)
+
+
+# # Save model
+# # name = 'mnist_model'
 name = "cars_model"
 torch.save(trainer.G.state_dict(), "./gen_" + name + ".pt")
 torch.save(trainer.D.state_dict(), "./dis_" + name + ".pt")
