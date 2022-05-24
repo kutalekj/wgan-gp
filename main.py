@@ -1,12 +1,15 @@
+#!/usr/bin/env python3
+
 import torch
 import torch.optim as optim
 from matplotlib import pyplot as plt
 from PIL import Image
 
 from configuration import config
-from dataloaders import get_mnist_dataloaders, get_paths, split_paths_between_train_and_val, get_cars_dataloader
+from dataloaders import get_paths, split_paths_between_train_and_val, get_cars_dataloader
 from models import Generator, Discriminator
 from training import Trainer
+
 
 # Training data path
 params = config(section="dataset")
@@ -15,8 +18,8 @@ params = config(section="dataset")
 paths = get_paths(root_dir_path=params["path"])
 train_paths, val_paths = split_paths_between_train_and_val(paths, ratio=0.8)
 
-train_dataloader = get_cars_dataloader(paths=train_paths, split='train')
-validation_dataloader = get_cars_dataloader(paths=val_paths, split='val')
+train_dataloader = get_cars_dataloader(paths=train_paths, split="train")
+validation_dataloader = get_cars_dataloader(paths=val_paths, split="val")
 
 # data_loader, _ = get_mnist_dataloaders(batch_size=64)
 # img_size = (32, 32, 1)
@@ -30,7 +33,7 @@ for ax, img_path in zip(axes.flatten(), train_paths):
 plt.show()
 
 data = next(iter(train_dataloader))
-Ls, abs_ = data['L'], data['ab']
+Ls, abs_ = data["L"], data["ab"]
 img_size_L = (Ls.shape[2], Ls.shape[3], 1)
 img_size_ab = (abs_.shape[2], abs_.shape[3], 2)
 img_size = (img_size_L[0], img_size_L[1], 3)  # full 3-channel color image (L*a*b)
@@ -52,7 +55,7 @@ print(discriminator)
 # ------------------------------------------------------------------------------------------------
 # Initialize GD optimizers
 lr = 1e-4
-betas = (.9, .99)
+betas = (0.9, 0.99)
 G_optimizer = optim.Adam(generator.parameters(), lr=lr, betas=betas)
 D_optimizer = optim.Adam(discriminator.parameters(), lr=lr, betas=betas)
 
@@ -66,6 +69,6 @@ trainer.train(train_dataloader, epochs, save_training_gif=True)
 # ------------------------------------------------------------------------------------------------
 # Save model
 # name = 'mnist_model'
-name = 'cars_model'
-torch.save(trainer.G.state_dict(), './gen_' + name + '.pt')
-torch.save(trainer.D.state_dict(), './dis_' + name + '.pt')
+name = "cars_model"
+torch.save(trainer.G.state_dict(), "./gen_" + name + ".pt")
+torch.save(trainer.D.state_dict(), "./dis_" + name + ".pt")

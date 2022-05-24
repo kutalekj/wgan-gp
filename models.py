@@ -14,8 +14,7 @@ class Generator(nn.Module):
 
         # HINT: Linear(in_features, out_features)
         self.latent_to_features = nn.Sequential(
-            nn.Linear(latent_dim, int(8 * dim * self.feature_sizes[0] * self.feature_sizes[1])),
-            nn.ReLU()
+            nn.Linear(latent_dim, int(8 * dim * self.feature_sizes[0] * self.feature_sizes[1])), nn.ReLU()
         )
 
         # HINT: ConvTranspose2d(in_features, out_features, kernel_size, stride, padding, ...)
@@ -31,15 +30,19 @@ class Generator(nn.Module):
             nn.ReLU(),
             nn.BatchNorm2d(dim),
             nn.ConvTranspose2d(dim, self.img_size[2], kernel_size=4, stride=2, padding=1),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
 
     def forward(self, input_data):
         # Map latent into appropriate size for transposed convolutions
+
+        # ANK: tady jsou input data vygenerovany sum a dava ho do nejake linear transformace s relu
         x = self.latent_to_features(input_data)
         # Reshape
         x = x.view(-1, 8 * self.dim, int(self.feature_sizes[0]), int(self.feature_sizes[1]))
         # Return generated image
+
+        # samotna generace obrazku
         return self.features_to_image(x)
 
     def sample_latent(self, num_samples):
@@ -68,15 +71,12 @@ class Discriminator(nn.Module):
             nn.Conv2d(2 * dim, 4 * dim, kernel_size=4, stride=2, padding=1),
             nn.LeakyReLU(0.2),
             nn.Conv2d(4 * dim, 8 * dim, kernel_size=4, stride=2, padding=1),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
 
         # 4 convolutions of stride 2 - half the size everytime -> output size = 8 * (img_size / 2^4) * (img_size / 2^4)
         output_size = int(8 * dim * (img_size[0] / 16) * (img_size[1] / 16))
-        self.features_to_prob = nn.Sequential(
-            nn.Linear(output_size, 1),
-            nn.Sigmoid()
-        )
+        self.features_to_prob = nn.Sequential(nn.Linear(output_size, 1), nn.Sigmoid())
 
     def forward(self, input_data):
         batch_size = input_data.size()[0]
