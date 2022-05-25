@@ -1,22 +1,28 @@
+import math
+
 import imageio
 import numpy as np
 import torch
 from torchvision.utils import make_grid
 from torch.autograd import Variable
 from torch.autograd import grad as torch_grad
+from matplotlib import pyplot as plt
+from skimage.color import lab2rgb
 
 
 class Trainer:
     def __init__(
-        self,
-        generator,
-        discriminator,
-        gen_optimizer,
-        dis_optimizer,
-        gp_weight=10,
-        critic_iterations=5,
-        print_every=5,
-        use_cuda=False,
+            self,
+            generator,
+            discriminator,
+            gen_optimizer,
+            dis_optimizer,
+            gp_weight=10,
+            critic_iterations=5,
+            print_every=5,
+            plot_every=2,
+            plot_first_n=4,
+            use_cuda=False,
     ):
         self.G = generator
         self.G_opt = gen_optimizer
@@ -28,6 +34,8 @@ class Trainer:
         self.gp_weight = gp_weight
         self.critic_iterations = critic_iterations
         self.print_every = print_every
+        self.plot_first_n = plot_first_n
+        self.plot_every = plot_every
 
         if self.use_cuda:
             self.G.cuda()
@@ -119,7 +127,7 @@ class Trainer:
 
         # Derivatives of the gradient close to 0 can cause problems because of the square root
         # So, manually calculate norm and add epsilon
-        gradients_norm = torch.sqrt(torch.sum(gradients**2, dim=1) + 1e-12)
+        gradients_norm = torch.sqrt(torch.sum(gradients ** 2, dim=1) + 1e-12)
 
         # Return gradient penalty
         return self.gp_weight * ((gradients_norm - 1) ** 2).mean()
@@ -134,6 +142,16 @@ class Trainer:
                 og_data, grayscale_data
             )  # TODO: JKU: A 3-channel REAL image (L*a*b) should be passed in
             # self._critic_train_iteration(data[0])
+
+            # Debug plotting
+            batch_size = og_data.size()[0]
+            if i % self.plot_every == 0 and self.plot_first_n <= batch_size:
+                grayscale_condition_samples = grayscale_data[0:self.plot_first_n, ...]
+                sample_generated = self.sample_generator(grayscale_condition_samples)
+                self.plot_first_n_times_n_batch_images(grayscale_condition_samples, color_mode='rgb', save=True,
+                                                       name=f"Iter:{i} gen_before", n=int(math.sqrt(self.plot_first_n)))
+                self.plot_first_n_times_n_batch_images(sample_generated, color_mode='rgb', save=True,
+                                                       name=f"Iter:{i} gen_after", n=int(math.sqrt(self.plot_first_n)))
 
             # Only update generator every |critic_iterations| iterations (every second iteration?)
             if self.num_steps % self.critic_iterations == 0:
@@ -172,3 +190,46 @@ class Trainer:
     #     generated_data = self.sample_generator(num_samples)
     #     # Remove color channel
     #     return generated_data.data.cpu().numpy()[:, 0, :, :]
+
+    @staticmethod
+    def plot_first_n_times_n_batch_images(image_batch_tensor, n=2, de_norm=True, color_mode='rgb', save=False, name=''):
+        fig, ax = plt.subplots(2, 2, figsize=(10, 10))
+        img3 = []
+
+        i = 0
+        # (3, 256, 256, batch_size) image tensor on the input, iterate over images in batch
+        for im in enumerate(image_batch_tensor):
+            if i < int(n * n):
+                img1 = im[1]
+
+                # L*a*b channels de-normalization
+                if de_norm:
+                    img1_l = img1[[0], ...] * 50.0 + 50.0
+                    img1_ab = img1[[1, 2], ...] * 110.0
+                    img1 = torch.cat([img1_l, img1_ab], 0)
+
+                # (color_channels, width, height) -> (width, height, color_channels)
+                img2 = torch.permute(img1, (1, 2, 0))
+
+                # Optional L*a*b -> RGB
+                if color_mode == 'rgb':
+                    img3 = lab2rgb(img2.detach().numpy())
+                    ax[int(i / n), int(i % n)].imshow(img3)
+                else:
+                    img3 = img2
+                    ax[int(i / n), int(i % n)].imshow(img3.detach().numpy())
+
+                ax[int(i / n), int(i % n)].axis("off")
+            else:
+                break
+            i = i + 1
+
+        # Save and show image
+        if save:
+            im_name = "rgb_" + str(name) + ".png" if color_mode == 'rgb' else "lab_" + str(name) + ".png"
+            fig.suptitle(im_name[:-4], fontsize=20)
+            if color_mode == 'lab':
+                img3 = img3.detach().numpy()
+            else:  # TODO: JKU: Saving does not work for L*a*b
+                fig.savefig(im_name)
+        fig.show()

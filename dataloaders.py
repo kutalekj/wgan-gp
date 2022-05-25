@@ -27,6 +27,8 @@ class CarDataset(Dataset):
         # Normalizace do prostoru <-1,1>
         _L = img_lab[[0], ...] / 50.0 - 1.0  # Between -1 and 1
         ab = img_lab[[1, 2], ...] / 110.0  # Between -1 and 1
+        # _L = img_lab[[0], ...]
+        # ab = img_lab[[1, 2], ...]
 
         return torch.cat([_L, ab], 0)
         # return {"L": _L, "ab": ab}
