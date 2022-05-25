@@ -19,6 +19,8 @@ May 2022
 """
 
 import math
+import os
+
 import numpy as np
 import torch
 from torchvision.utils import make_grid
@@ -162,17 +164,17 @@ class Trainer:
                     grayscale_condition_samples,
                     color_mode="rgb",
                     save=True,
-                    name=f"Epoch:{epoch_number}_Iter:{i}_gen_before",
+                    name=f"Epoch_{epoch_number}_Iter_{i}_gen_before",
                     n=int(math.sqrt(self.plot_first_n)),
                 )
                 self.plot_first_n_times_n_batch_images(
                     sample_generated,
                     color_mode="rgb",
                     save=True,
-                    name=f"Epoch:{epoch_number}_Iter:{i}_gen_after",
+                    name=f"Epoch_{epoch_number}_Iter_{i}_gen_after",
                     n=int(math.sqrt(self.plot_first_n)),
                 )
-                self.plot_lab_space(sample_generated, name=f"Epoch:{epoch_number}_Iter:{i}_lab")
+                self.plot_lab_space(sample_generated, name=f"Epoch_{epoch_number}_Iter_{i}_lab")
 
             # Only update generator every |critic_iterations| iterations (every second iteration?)
             if self.num_steps % self.critic_iterations == 0:
@@ -252,7 +254,11 @@ class Trainer:
         if save:
             im_name = "rgb_" + str(name) + ".png"
             fig.suptitle(im_name[:-4], fontsize=20)
-            fig.savefig(im_name)
+
+            path = os.path.join("images", im_name)
+            if not os.path.exists("images"):
+                os.makedirs("images")
+            fig.savefig(path)
 
         fig.show()
 
@@ -318,5 +324,8 @@ class Trainer:
             if color_mode == "lab":
                 img3 = img3.detach().numpy()
             else:  # TODO: JKU: Saving does not work for L*a*b
-                fig.savefig(im_name)
+                path = os.path.join("images", im_name)
+                if not os.path.exists("images"):
+                    os.makedirs("images")
+                fig.savefig(path)
         fig.show()
