@@ -37,8 +37,8 @@ class Trainer:
         dis_optimizer,
         gp_weight=10,
         critic_iterations=5,
-        print_every=500,
-        plot_every=2000,
+        print_every=50,
+        plot_every=50,
         plot_first_n=4,
         use_cuda=False,
     ):
@@ -145,7 +145,7 @@ class Trainer:
         # Return gradient penalty
         return self.gp_weight * ((gradients_norm - 1) ** 2).mean()
 
-    def _train_epoch(self, og_data_loader, grayscale_data_loader):
+    def _train_epoch(self, og_data_loader, grayscale_data_loader, epoch_number):
         # A single training epoch
         # ANK: tady se nacte do promenne data vzdy cely batch dat - tj tensor o rozmerech (batch_size, channels, 256, 256)
         for i, (og_data, grayscale_data) in enumerate(zip(og_data_loader, grayscale_data_loader)):
@@ -162,16 +162,17 @@ class Trainer:
                     grayscale_condition_samples,
                     color_mode="rgb",
                     save=True,
-                    name=f"Iter:{i} gen_before",
+                    name=f"Epoch:{epoch_number}_Iter:{i}_gen_before",
                     n=int(math.sqrt(self.plot_first_n)),
                 )
                 self.plot_first_n_times_n_batch_images(
                     sample_generated,
                     color_mode="rgb",
                     save=True,
-                    name=f"Iter:{i} gen_after",
+                    name=f"Epoch:{epoch_number}_Iter:{i}_gen_after",
                     n=int(math.sqrt(self.plot_first_n)),
                 )
+                self.plot_lab_space(sample_generated, name=f"Epoch:{epoch_number}_Iter:{i}_lab")
 
             # Only update generator every |critic_iterations| iterations (every second iteration?)
             if self.num_steps % self.critic_iterations == 0:
@@ -196,7 +197,7 @@ class Trainer:
         # Main training loop
         for epoch in range(epochs):
             print("\nEpoch {}".format(epoch + 1))
-            self._train_epoch(og_data_loader, grayscale_data_loader)
+            self._train_epoch(og_data_loader, grayscale_data_loader, epoch)
 
     def sample_generator(self, grayscale_data):
         # "Variable" is a wrapper around a PyTorch Tensor, representing a node in a computational graph
@@ -207,8 +208,60 @@ class Trainer:
         generated_data = self.G(grayscale_data)
         return generated_data
 
+    def plot_lab_space(self, image_batch_tensor, de_norm=True, save=True, name=""):
+
+        fig, axes = plt.subplots(4, 3, figsize=(12, 16))
+
+        for ax in axes.flatten():
+            ax.axis("off")
+
+        for i, img in enumerate(image_batch_tensor[0:4, ...]):
+
+            if de_norm:
+                img_l = img[[0], ...] * 50.0 + 50.0
+                img_ab = img[[1, 2], ...] * 110.0
+                lab = torch.cat([img_l, img_ab], 0)
+
+            lab_l = self.extract_single_dim_from_LAB(lab, 0)
+            lab_a = self.extract_single_dim_from_LAB(lab, 1)
+            lab_db = self.extract_single_dim_from_LAB(lab, 2)
+
+            # Plot the results
+            data = [("L: lightness", lab_l), ("a: green-magenta channel", lab_a), ("b: blue-yellow channel", lab_db)]
+
+            axes[i, 0].imshow(data[0][1])
+            axes[i, 1].imshow(data[1][1])
+            axes[i, 2].imshow(data[2][1])
+
+            # for ax, (title, img) in zip([axes[i + 0], axes[i + 1], axes[i + 2]], data):
+            #     ax.set_title(title)
+            #     ax.imshow(img)
+            #     ax.axis("off")
+
+        fig.tight_layout()
+
+        if save:
+            im_name = "rgb_" + str(name) + ".png"
+            fig.suptitle(im_name[:-4], fontsize=20)
+            fig.savefig(im_name)
+
+        fig.show()
+
+    def extract_single_dim_from_LAB(self, image, idim):
+        # print(image.size())
+        image = torch.permute(image, (1, 2, 0))
+        image = image.detach().cpu().numpy()
+        # print(image.shape)
+
+        z = np.zeros(image.shape)
+        if idim != 0:
+            z[:, :, 0] = 80  # I need brightness to plot the image along 1st or 2nd axis
+        z[:, :, idim] = image[:, :, idim]
+        z = lab2rgb(z)
+        return z
+
     def plot_first_n_times_n_batch_images(
-        self, image_batch_tensor, n=2, de_norm=True, color_mode="rgb", save=False, name=""
+        self, image_batch_tensor, n=2, de_norm=True, color_mode="rgb", save=True, name=""
     ):
         fig, ax = plt.subplots(2, 2, figsize=(10, 10))
         img3 = []
@@ -246,6 +299,8 @@ class Trainer:
             else:
                 break
             i = i + 1
+
+        fig.tight_layout()
 
         # Save and show image
         if save:
