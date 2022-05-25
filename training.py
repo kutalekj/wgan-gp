@@ -1,6 +1,24 @@
-import math
+"""User guided car image colorization with WGAN-GP.
 
-import imageio
+Authors
+-------
+Chimenti Andrea     xchime00
+Chudarek Ales       xchuda04
+Kosak Vaclav        xkosak01
+Kutalek Jiri        xkutal09
+
+Insitution
+----------
+Brno University of Technology
+Faculty of Information Technology
+
+Date
+----
+May 2022
+
+"""
+
+import math
 import numpy as np
 import torch
 from torchvision.utils import make_grid
@@ -12,17 +30,17 @@ from skimage.color import lab2rgb
 
 class Trainer:
     def __init__(
-            self,
-            generator,
-            discriminator,
-            gen_optimizer,
-            dis_optimizer,
-            gp_weight=10,
-            critic_iterations=5,
-            print_every=5,
-            plot_every=2,
-            plot_first_n=4,
-            use_cuda=False,
+        self,
+        generator,
+        discriminator,
+        gen_optimizer,
+        dis_optimizer,
+        gp_weight=10,
+        critic_iterations=5,
+        print_every=500,
+        plot_every=2000,
+        plot_first_n=4,
+        use_cuda=False,
     ):
         self.G = generator
         self.G_opt = gen_optimizer
@@ -44,20 +62,15 @@ class Trainer:
     def _critic_train_iteration(self, og_data, grayscale_data):
         # ANK: v promenne data je batch nactenych obrazku, v nasem pripade to budou barevne ground_truth obrazky protoze jsou pak pouzity v diskriminatoru
 
-        # assert og_data.size()[0] == grayscale_data.size()[0]
-        # Get generated data
-        # batch_size = og_data.size()[0]
-
-        # TODO: ANK: ultra dulezite, tady ta funkce bude potreba hodne predelat, tak aby generovala prostory ab a navic by na vstupu mela mit Lab cernobileho obrazku (s napovedou barev)
+        # Generuje vysledne lab obrazky
         generated_data = self.sample_generator(grayscale_data)
 
         # Calculate probabilities on real and generated data
-        # TODO: JKU: Modify generator to concatenate input (L*a*b) with noise and output a 2-channel (*a*b) image
         og_data = Variable(og_data)
         if self.use_cuda:
             og_data = og_data.cuda()
 
-        # ANK: hrozne dulezity krok, d_real jsou asi pravdepodobnosti ze skutecna data jsou skutecna
+        # ANK: d_real jsou pravdepodobnosti ze skutecna data jsou skutecna
         # d_gen jsou pravdepodobnosti ze vygenerovana data jsou skutecna
         d_real = self.D(og_data)
         d_generated = self.D(generated_data)
@@ -127,7 +140,7 @@ class Trainer:
 
         # Derivatives of the gradient close to 0 can cause problems because of the square root
         # So, manually calculate norm and add epsilon
-        gradients_norm = torch.sqrt(torch.sum(gradients ** 2, dim=1) + 1e-12)
+        gradients_norm = torch.sqrt(torch.sum(gradients**2, dim=1) + 1e-12)
 
         # Return gradient penalty
         return self.gp_weight * ((gradients_norm - 1) ** 2).mean()
@@ -138,20 +151,27 @@ class Trainer:
         for i, (og_data, grayscale_data) in enumerate(zip(og_data_loader, grayscale_data_loader)):
             self.num_steps += 1
             # Discriminator training?
-            self._critic_train_iteration(
-                og_data, grayscale_data
-            )  # TODO: JKU: A 3-channel REAL image (L*a*b) should be passed in
-            # self._critic_train_iteration(data[0])
+            self._critic_train_iteration(og_data, grayscale_data)
 
             # Debug plotting
             batch_size = og_data.size()[0]
             if i % self.plot_every == 0 and self.plot_first_n <= batch_size:
-                grayscale_condition_samples = grayscale_data[0:self.plot_first_n, ...]
+                grayscale_condition_samples = grayscale_data[0 : self.plot_first_n, ...]
                 sample_generated = self.sample_generator(grayscale_condition_samples)
-                self.plot_first_n_times_n_batch_images(grayscale_condition_samples, color_mode='rgb', save=True,
-                                                       name=f"Iter:{i} gen_before", n=int(math.sqrt(self.plot_first_n)))
-                self.plot_first_n_times_n_batch_images(sample_generated, color_mode='rgb', save=True,
-                                                       name=f"Iter:{i} gen_after", n=int(math.sqrt(self.plot_first_n)))
+                self.plot_first_n_times_n_batch_images(
+                    grayscale_condition_samples,
+                    color_mode="rgb",
+                    save=True,
+                    name=f"Iter:{i} gen_before",
+                    n=int(math.sqrt(self.plot_first_n)),
+                )
+                self.plot_first_n_times_n_batch_images(
+                    sample_generated,
+                    color_mode="rgb",
+                    save=True,
+                    name=f"Iter:{i} gen_after",
+                    n=int(math.sqrt(self.plot_first_n)),
+                )
 
             # Only update generator every |critic_iterations| iterations (every second iteration?)
             if self.num_steps % self.critic_iterations == 0:
@@ -181,18 +201,15 @@ class Trainer:
     def sample_generator(self, grayscale_data):
         # "Variable" is a wrapper around a PyTorch Tensor, representing a node in a computational graph
         # latent_samples = Variable(self.G.sample_latent(num_samples))  # Get gaussian noise data
-        # if self.use_cuda:
         #     latent_samples = latent_samples.cuda()
+        if self.use_cuda:
+            grayscale_data = grayscale_data.cuda()
         generated_data = self.G(grayscale_data)
         return generated_data
 
-    # def sample(self, num_samples):
-    #     generated_data = self.sample_generator(num_samples)
-    #     # Remove color channel
-    #     return generated_data.data.cpu().numpy()[:, 0, :, :]
-
-    @staticmethod
-    def plot_first_n_times_n_batch_images(image_batch_tensor, n=2, de_norm=True, color_mode='rgb', save=False, name=''):
+    def plot_first_n_times_n_batch_images(
+        self, image_batch_tensor, n=2, de_norm=True, color_mode="rgb", save=False, name=""
+    ):
         fig, ax = plt.subplots(2, 2, figsize=(10, 10))
         img3 = []
 
@@ -212,12 +229,18 @@ class Trainer:
                 img2 = torch.permute(img1, (1, 2, 0))
 
                 # Optional L*a*b -> RGB
-                if color_mode == 'rgb':
-                    img3 = lab2rgb(img2.detach().numpy())
+                if color_mode == "rgb":
+                    if self.use_cuda:
+                        img3 = lab2rgb(img2.detach().cpu().numpy())
+                    else:
+                        img3 = lab2rgb(img2.detach().numpy())
                     ax[int(i / n), int(i % n)].imshow(img3)
                 else:
                     img3 = img2
-                    ax[int(i / n), int(i % n)].imshow(img3.detach().numpy())
+                    if self.use_cuda:
+                        ax[int(i / n), int(i % n)].imshow(img3.detach().cpu().numpy())
+                    else:
+                        ax[int(i / n), int(i % n)].imshow(img3.detach().numpy())
 
                 ax[int(i / n), int(i % n)].axis("off")
             else:
@@ -226,9 +249,9 @@ class Trainer:
 
         # Save and show image
         if save:
-            im_name = "rgb_" + str(name) + ".png" if color_mode == 'rgb' else "lab_" + str(name) + ".png"
+            im_name = "rgb_" + str(name) + ".png" if color_mode == "rgb" else "lab_" + str(name) + ".png"
             fig.suptitle(im_name[:-4], fontsize=20)
-            if color_mode == 'lab':
+            if color_mode == "lab":
                 img3 = img3.detach().numpy()
             else:  # TODO: JKU: Saving does not work for L*a*b
                 fig.savefig(im_name)

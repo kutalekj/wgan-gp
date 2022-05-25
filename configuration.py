@@ -1,7 +1,27 @@
+"""User guided car image colorization with WGAN-GP.
+
+Authors
+-------
+Chimenti Andrea     xchime00
+Chudarek Ales       xchuda04
+Kosak Vaclav        xkosak01
+Kutalek Jiri        xkutal09
+
+Insitution
+----------
+Brno University of Technology
+Faculty of Information Technology
+
+Date
+----
+May 2022
+
+"""
+
 from configparser import ConfigParser
 
 
-def config(filename='config.ini', section=''):
+def config(filename="config.ini", section=""):
     # create a parser
     parser = ConfigParser()
     # read config file
@@ -14,6 +34,6 @@ def config(filename='config.ini', section=''):
         for param in params:
             data[param[0]] = param[1]
     else:
-        raise Exception('Section {0} not found in the {1} file'.format(section, filename))
+        raise Exception("Section {0} not found in the {1} file".format(section, filename))
 
     return data
