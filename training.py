@@ -192,12 +192,21 @@ class Trainer:
                 if self.num_steps > self.critic_iterations:
                     print("G: {}".format(self.losses["G"][-1]))
 
-    def train(self, og_data_loader, grayscale_data_loader, epochs):
+    def train(self, og_data_loader, grayscale_data_loader, epochs, save_path=None):
 
         # Main training loop
         for epoch in range(epochs):
             print("\nEpoch {}".format(epoch + 1))
             self._train_epoch(og_data_loader, grayscale_data_loader, epoch)
+
+            # Save model
+            torch.save(
+                {
+                    "generator": self.G.state_dict(),
+                    "discriminator": self.D.state_dict(),
+                },
+                save_path,
+            )
 
     def sample_generator(self, grayscale_data):
         # "Variable" is a wrapper around a PyTorch Tensor, representing a node in a computational graph

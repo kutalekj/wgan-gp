@@ -65,7 +65,7 @@ if __name__ == "__main__":
     args = get_parser().parse_args()
 
     name = "cars_model"
-    model_save_name = f"trainting_{name}.pt"
+    model_save_name = f"training_{name}.pt"
 
     dataset_paths = config(section="dataset_paths")
 
@@ -100,16 +100,19 @@ if __name__ == "__main__":
     G_optimizer = optim.Adam(generator.parameters(), lr=lr, betas=betas)
     D_optimizer = optim.Adam(discriminator.parameters(), lr=lr, betas=betas)
 
-    # Train model
-    epochs = args.epochs
-    trainer = Trainer(generator, discriminator, G_optimizer, D_optimizer, use_cuda=torch.cuda.is_available())
-    trainer.train(og_dataloader, grayscale_dataloader, epochs)
-
+    save_path = ""
     if args.save_model:
-        # Save model
         save_path = model_save_name
         if args.save_name != "":
             save_path = args.save_name
+
+    # Train model
+    epochs = args.epochs
+    trainer = Trainer(generator, discriminator, G_optimizer, D_optimizer, use_cuda=torch.cuda.is_available())
+    trainer.train(og_dataloader, grayscale_dataloader, epochs, save_path=save_path)
+
+    # Save model
+    if args.save_model:
         torch.save(
             {
                 "generator": trainer.G.state_dict(),
