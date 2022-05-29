@@ -39,7 +39,7 @@ class Trainer:
         dis_optimizer,
         gp_weight=10,
         critic_iterations=5,
-        print_every=50,
+        print_every=5,
         plot_every=50,
         plot_first_n=4,
         use_cuda=False,
@@ -62,9 +62,10 @@ class Trainer:
             self.D.cuda()
 
     def _critic_train_iteration(self, og_data, grayscale_data):
-        # ANK: v promenne data je batch nactenych obrazku, v nasem pripade to budou barevne ground_truth obrazky protoze jsou pak pouzity v diskriminatoru
+        # ANK: "og_data" = one batch of color ground-truth images
+        # JKU: "grayscale_data" = one batch of grayscale images with several colored pixels (simulated user-guidance)
 
-        # Generuje vysledne lab obrazky
+        # Generate L*a*b* images
         generated_data = self.sample_generator(grayscale_data)
 
         # Calculate probabilities on real and generated data
@@ -72,8 +73,8 @@ class Trainer:
         if self.use_cuda:
             og_data = og_data.cuda()
 
-        # ANK: d_real jsou pravdepodobnosti ze skutecna data jsou skutecna
-        # d_gen jsou pravdepodobnosti ze vygenerovana data jsou skutecna
+        # ANK: "d_real" = prob. that real data is real, "d_gen" = prob. that generated data is real
+        # TODO: JKU: Critic score instead of probabilities?
         d_real = self.D(og_data)
         d_generated = self.D(generated_data)
 
@@ -84,8 +85,10 @@ class Trainer:
         # Get total loss and optimize
         # https://stackoverflow.com/questions/48001598/why-do-we-need-to-call-zero-grad-in-pytorch
         self.D_opt.zero_grad()
-        d_loss = d_generated.mean() - d_real.mean() + gradient_penalty
-        # ANK: tomuto kroku nerozumim, vola se backward na hodnotu loss .. co se tim docili?
+
+        d_gen_mean = d_generated.mean()
+        d_real_mean = d_real.mean()
+        d_loss = d_gen_mean - d_real_mean + gradient_penalty
         d_loss.backward()
 
         # Perform a single optimization step
@@ -96,12 +99,14 @@ class Trainer:
         # https://stackoverflow.com/questions/48001598/why-do-we-need-to-call-zero-grad-in-pytorch
         self.G_opt.zero_grad()
 
-        # Get generated data
+        # Generate L*a*b* images
         generated_data = self.sample_generator(grayscale_data)
 
-        # Calculate loss and optimize
+        # Calculate probabilities, loss and optimize
         d_generated = self.D(generated_data)
-        g_loss = -d_generated.mean()
+
+        d_gen_mean = d_generated.mean()
+        g_loss = -d_gen_mean
         g_loss.backward()
 
         # Perform a single optimization step
@@ -149,10 +154,10 @@ class Trainer:
 
     def _train_epoch(self, og_data_loader, grayscale_data_loader, epoch_number):
         # A single training epoch
-        # ANK: tady se nacte do promenne data vzdy cely batch dat - tj tensor o rozmerech (batch_size, channels, 256, 256)
+        # ANK: Iterate once over all images batches - tensors of shape (batch_size, channels, 256, 256)
         for i, (og_data, grayscale_data) in enumerate(zip(og_data_loader, grayscale_data_loader)):
             self.num_steps += 1
-            # Discriminator training?
+            # Discriminator training (critic score calculating)
             self._critic_train_iteration(og_data, grayscale_data)
 
             # Debug plotting
@@ -176,23 +181,19 @@ class Trainer:
                 )
                 self.plot_lab_space(sample_generated, name=f"Epoch_{epoch_number}_Iter_{i}_lab")
 
-            # Only update generator every |critic_iterations| iterations (every second iteration?)
+            # Only update generator every |critic_iterations| iterations
             if self.num_steps % self.critic_iterations == 0:
-                # Generator training?
-                self._generator_train_iteration(
-                    grayscale_data
-                )  # TODO: JKU: A 3-chn. USER image (L*a*b) should be passed in
-                # self._generator_train_iteration(data[0])
-                # TODO: JKU: Concatenate 2-chn. (*a,*b) generator output with the 1-chn. grayscale prior ('L' from REAL)
+                # Generator training
+                self._generator_train_iteration(grayscale_data)
 
             # STDOUT print
             if i % self.print_every == 0:
-                print("Iteration {}".format(i + 1))
+                print("EP {}, Iteration {}".format(epoch_number, i + 1))
                 print("D: {}".format(self.losses["D"][-1]))
-                print("GP: {}".format(self.losses["GP"][-1]))
-                print("Gradient norm: {}".format(self.losses["gradient_norm"][-1]))
                 if self.num_steps > self.critic_iterations:
                     print("G: {}".format(self.losses["G"][-1]))
+                print("GP: {}".format(self.losses["GP"][-1]))
+                print("Gradient norm: {}".format(self.losses["gradient_norm"][-1]))
 
     def train(self, og_data_loader, grayscale_data_loader, epochs, save_path=None):
 
@@ -243,11 +244,6 @@ class Trainer:
             axes[i, 0].imshow(data[0][1])
             axes[i, 1].imshow(data[1][1])
             axes[i, 2].imshow(data[2][1])
-
-            # for ax, (title, img) in zip([axes[i + 0], axes[i + 1], axes[i + 2]], data):
-            #     ax.set_title(title)
-            #     ax.imshow(img)
-            #     ax.axis("off")
 
         fig.tight_layout()
 
