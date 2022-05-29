@@ -28,6 +28,7 @@ from torch.utils.data import DataLoader
 from matplotlib import pyplot as plt
 from PIL import Image
 
+import models
 from configuration import config
 from dataloaders import CarDataset, get_paths
 from models import Discriminator, UnetGenerator
@@ -74,6 +75,7 @@ if __name__ == "__main__":
     og_dataloader = DataLoader(og_dataset, batch_size=args.batch_size, shuffle=True)
 
     grayscale_paths = get_paths(root_dir_path=dataset_paths["grayscale"])
+    grayscale_paths = grayscale_paths[:2000]
     grayscale_dataset = CarDataset(grayscale_paths)
     grayscale_dataloader = DataLoader(grayscale_dataset, batch_size=args.batch_size, shuffle=True)
 
@@ -81,6 +83,12 @@ if __name__ == "__main__":
 
     generator = UnetGenerator(input_c=3, output_c=2)
     discriminator = Discriminator(img_size=img_size, dim=16)
+
+    generator = models.init_weights(generator)
+    discriminator = models.init_weights(discriminator)
+
+    print(generator)
+    print(discriminator)
 
     if args.load_model:
         # Load from save

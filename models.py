@@ -17,6 +17,7 @@ Date
 May 2022
 
 """
+from datetime import date
 
 import torch
 import torch.nn as nn
@@ -35,7 +36,7 @@ class Discriminator(nn.Module):
         self.img_size = img_size
 
         # HINT: LeakyReLU(negative_slope)
-        self.image_to_features = nn.Sequential(
+        """self.image_to_features = nn.Sequential(
             nn.Conv2d(self.img_size[2], dim, kernel_size=4, stride=2, padding=1),
             nn.LeakyReLU(0.2),
             nn.Conv2d(dim, 2 * dim, kernel_size=4, stride=2, padding=1),
@@ -44,10 +45,26 @@ class Discriminator(nn.Module):
             nn.LeakyReLU(0.2),
             nn.Conv2d(4 * dim, 8 * dim, kernel_size=4, stride=2, padding=1),
             nn.Sigmoid(),
+        )"""
+        self.image_to_features = nn.Sequential(
+            nn.Conv2d(self.img_size[2], dim, kernel_size=4, stride=2, padding=1),
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(dim, 2 * dim, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(2 * dim),
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(2 * dim, 4 * dim, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(4 * dim),
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(4 * dim, 8 * dim, kernel_size=4, stride=2, padding=1),
+            # nn.BatchNorm2d(8 * dim),
+            # nn.LeakyReLU(0.2),
+            # nn.Conv2d(8 * dim, 16 * dim, kernel_size=4, stride=2, padding=1),
+            nn.Sigmoid(),
         )
 
         # 4 convolutions of stride 2 - half the size everytime -> output size = 8 * (img_size / 2^4) * (img_size / 2^4)
         output_size = int(8 * dim * (img_size[0] / 16) * (img_size[1] / 16))
+        # output_size = int(16 * dim * (img_size[0] / 16) * (img_size[1] / 16))
         self.features_to_prob = nn.Sequential(nn.Linear(output_size, 1), nn.Sigmoid())
 
     def forward(self, input_data):
@@ -115,3 +132,25 @@ class UnetGenerator(nn.Module):
 
         # konkatenace puvodniho L a novych ab
         return torch.cat([og_L, ab], 1)
+
+
+def init_weights(net, init='norm', gain=0.02):
+    def init_func(m):
+        classname = m.__class__.__name__
+        if hasattr(m, 'weight') and 'Conv' in classname:
+            if init == 'norm':
+                nn.init.normal_(m.weight.data, mean=0.0, std=gain)
+            elif init == 'xavier':
+                nn.init.xavier_normal_(m.weight.data, gain=gain)
+            elif init == 'kaiming':
+                nn.init.kaiming_normal_(m.weight.data, a=0, mode='fan_in')
+
+            if hasattr(m, 'bias') and m.bias is not None:
+                nn.init.constant_(m.bias.data, 0.0)
+        elif 'BatchNorm2d' in classname:
+            nn.init.normal_(m.weight.data, 1., gain)
+            nn.init.constant_(m.bias.data, 0.)
+
+    net.apply(init_func)
+    print(f"model initialized with {init} initialization")
+    return net

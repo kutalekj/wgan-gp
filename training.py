@@ -39,7 +39,7 @@ class Trainer:
         dis_optimizer,
         gp_weight=10,
         critic_iterations=5,
-        print_every=5,
+        print_every=50,
         plot_every=50,
         plot_first_n=4,
         use_cuda=False,
@@ -95,6 +95,8 @@ class Trainer:
         self.D_opt.step()
         self.losses["D"].append(d_loss.data)
 
+        # print(f"\td_gen_loss_mean = {d_gen_mean}, stddev = {d_generated.std()}\td_real_loss_mean = {d_real_mean}, stddev = {d_real.std()}")
+
     def _generator_train_iteration(self, grayscale_data):
         # https://stackoverflow.com/questions/48001598/why-do-we-need-to-call-zero-grad-in-pytorch
         self.G_opt.zero_grad()
@@ -112,6 +114,8 @@ class Trainer:
         # Perform a single optimization step
         self.G_opt.step()
         self.losses["G"].append(g_loss.data)
+
+        # print(f"\t\tg_gen_loss_mean = {d_gen_mean}, stddev = {d_generated.std()}")
 
     def _gradient_penalty(self, real_data, generated_data):
         batch_size = real_data.size()[0]
