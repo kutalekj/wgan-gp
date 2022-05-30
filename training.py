@@ -23,11 +23,14 @@ import os
 
 import numpy as np
 import torch
+import torch.nn as nn
 from torchvision.utils import make_grid
 from torch.autograd import Variable
 from torch.autograd import grad as torch_grad
 from matplotlib import pyplot as plt
 from skimage.color import lab2rgb
+
+import models
 
 
 class Trainer:
@@ -56,6 +59,8 @@ class Trainer:
         self.print_every = print_every
         self.plot_first_n = plot_first_n
         self.plot_every = plot_every
+        self.gan_criterion = models.GANLoss(gan_mode='vanilla').to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        self.l1_criterion = nn.L1Loss()
 
         if self.use_cuda:
             self.G.cuda()
@@ -97,7 +102,16 @@ class Trainer:
 
         # print(f"\td_gen_loss_mean = {d_gen_mean}, stddev = {d_generated.std()}\td_real_loss_mean = {d_real_mean}, stddev = {d_real.std()}")
 
-    def _generator_train_iteration(self, grayscale_data):
+    def _generator_train_iteration(self, og_data, grayscale_data):
+        """fake_preds = self.net_D(fake_image)
+        self.loss_G_GAN = self.GANcriterion(fake_preds, True)
+        self.loss_G_L1 = self.L1criterion(self.fake_color, self.ab) * self.lambda_L1
+        self.loss_G = self.loss_G_GAN + self.loss_G_L1
+        self.loss_G.backward()
+
+        self.GANcriterion = GANLoss(gan_mode='vanilla').to(self.device)
+        self.L1criterion = nn.L1Loss()"""
+
         # https://stackoverflow.com/questions/48001598/why-do-we-need-to-call-zero-grad-in-pytorch
         self.G_opt.zero_grad()
 
@@ -107,13 +121,20 @@ class Trainer:
         # Calculate probabilities, loss and optimize
         d_generated = self.D(generated_data)
 
-        d_gen_mean = d_generated.mean()
+        loss_g_gan = self.gan_criterion(d_generated, True)
+        loss_g_l1 = self.l1_criterion(grayscale_data[:, 1:, ...], og_data[:, 1:, ...]) * 100.0  # lambda=100.0
+        # TODO: JKU: "self.fake_color" = predicted a*b* channels, "self.ab" = ground-truth a*b* channels
+        loss_g = loss_g_gan + loss_g_l1
+        loss_g.backward()
+
+        """d_gen_mean = d_generated.mean()
         g_loss = -d_gen_mean
-        g_loss.backward()
+        g_loss.backward()"""
 
         # Perform a single optimization step
         self.G_opt.step()
-        self.losses["G"].append(g_loss.data)
+        # self.losses["G"].append(g_loss.data)
+        self.losses["G"].append(loss_g.data)
 
         # print(f"\t\tg_gen_loss_mean = {d_gen_mean}, stddev = {d_generated.std()}")
 
@@ -188,7 +209,7 @@ class Trainer:
             # Only update generator every |critic_iterations| iterations
             if self.num_steps % self.critic_iterations == 0:
                 # Generator training
-                self._generator_train_iteration(grayscale_data)
+                self._generator_train_iteration(og_data, grayscale_data)
 
             # STDOUT print
             if i % self.print_every == 0:
