@@ -71,11 +71,12 @@ if __name__ == "__main__":
     dataset_paths = config(section="dataset_paths")
 
     og_paths = get_paths(root_dir_path=dataset_paths["og"])
+    og_paths = og_paths[:10000]
     og_dataset = CarDataset(og_paths)
     og_dataloader = DataLoader(og_dataset, batch_size=args.batch_size, shuffle=True)
 
     grayscale_paths = get_paths(root_dir_path=dataset_paths["grayscale"])
-    grayscale_paths = grayscale_paths[:2000]
+    grayscale_paths = grayscale_paths[:10000]
     grayscale_dataset = CarDataset(grayscale_paths)
     grayscale_dataloader = DataLoader(grayscale_dataset, batch_size=args.batch_size, shuffle=True)
 
